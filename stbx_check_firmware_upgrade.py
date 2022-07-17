@@ -104,7 +104,6 @@ try:
     # device_status = dashboard.organizations.getOrganizationDevicesStatuses(
     # org_id, total_pages = 'all', networkIds = upgrade_nlist, productTypes = ['appliance']
     # )
-  
     # In this way, there is no error but very slow :-(
     # device_status = dashboard.organizations.getOrganizationDevicesStatuses(
     # org_id, total_pages = 'all', productTypes = ['appliance']
@@ -211,6 +210,9 @@ try:
         print('No unreachable spoke sites :-)')
         rs.write("No unreachable spoke sites.")
     else:
+        # To find those networks unreachable from both hubs and those unreachable from single hub
+        # In this way, it's much easier to compare the results if you run the scipt before the 
+        # firmware and after the firmware upgrade.
         both_unreachable = []
         single_unreachable = []
         checkboth_no_dup = list(dict.fromkeys(checkboth))

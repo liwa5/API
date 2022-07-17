@@ -1,3 +1,4 @@
+from tabnanny import check
 import meraki
 import csv
 from datetime import datetime
@@ -6,6 +7,7 @@ from datetime import datetime
 #API_KEY = MERAKI_DASHBOARD_API_KEY
 # Instead, use an environment variable as shown under the Usage section
 # @ https://github.com/meraki/dashboard-api-python/
+
 
 dashboard = meraki.DashboardAPI()
 
@@ -23,26 +25,47 @@ template_list = dashboard.organizations.getOrganizationConfigTemplates(
 
 try:
     rows = []
-    with open('template.csv', newline='', encoding = 'utf-8-sig') as f:
-        reader = csv.reader(f) 
+    with open('template.csv', newline='', encoding = 'utf-8') as f:
+    #with open('template.csv', newline='', encoding = 'utf-8-sig') as f:
+    #with open('template.csv', newline='') as f:
+    # I've met the issue that the template name copied from somewhere has the mixed en-coding issue
+    # and the scipts wil crash here. Make sure the encoding of the template network name is correct. 
+        reader = csv.reader(f)
         for row in reader:
             rows.append(row)
 
-    # Open the STBX_result CSV file as output and write the 1st line
+    # Open the STBX_result CSV file as output and record the time for tracking purpose. 
     rs = open('STBX_result.csv', 'w', encoding='utf-8')
     date = datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p")    
     print(date)
-    rs.write('The scripts are run at ' + date + '\n')
+    rs.write(date + '\n')
 
     upgrade_template = []
     for i in rows:
         for j in template_list:
             if (i[0] == j['name']):
                 upgrade_template.append(j['id'])
-                print('Template name is ' + j['name'] + '. Template id is ' + j['id'] + '.\n')
-                rs.write('Template name is ' + j['name'] + '. Template id is ' + j['id'] + '.\n')
+                #print('Template name is ' + j['name'] + '. Template id is ' + j['id'] + '.\n')
+                rs.write('Template id,' + j['id'] + '\n')
 
-    txt = "Matched {} templates for firmware upgrade this time.\n\n"
+    # upgrade_template = []
+    # for i in rows:
+    #     for j in template_list:
+    #         if isinstance(i, list) == True: # Check if rows has sub list in it
+    #             for sub_list in i:
+    #                 print(type(sub_list))
+    #                 if (sub_list == j['name']):
+    #                     upgrade_template.append(j['id'])
+    #                     print('Template name is ' + j['name'] + '. Template id is ' + j['id'] + '.\n')
+    #                     rs.write('Template name is ' + j['name'] + '. Template id is ' + j['id'] + '.\n')
+    #         else:
+    #             if (i[0] == j['name']):
+    #                 upgrade_template.append(j['id'])
+    #                 print('Template name is ' + j['name'] + '. Template id is ' + j['id'] + '.\n')
+    #                 rs.write('Template name is ' + j['name'] + '. Template id is ' + j['id'] + '.\n')
+
+
+    txt = "Matched {} template for firmware upgrade\n\n"
     print(txt.format(len(upgrade_template)))
     rs.write(txt.format(len(upgrade_template)))
 
@@ -86,11 +109,16 @@ try:
     # device_status = dashboard.organizations.getOrganizationDevicesStatuses(
     # org_id, total_pages = 'all', productTypes = ['appliance']
     # )
+    # Therefore, I have to divide the network id list into groups. Each group has 150 items. There is no error and is also
+    # fast in this way. The codes look ugly :-) May need a function to replace it later.
     
     online = 0
     offline = 0
     alerting = 0
     dormant = 0
+    off_sn = []
+    al_sn = []
+    dor_sn = []
 
     ulist_len = len(upgrade_nlist)
     ulist_rem = ulist_len % 150
@@ -106,16 +134,16 @@ try:
                     online += 1
                 elif(i['status']) == 'offline':
                     offline += 1
-                    print('Device with name as '+ i['name']+' and serial as '+i['serial']+' is offline')
-                    rs.write('Device with name as '+ i['name']+' and serial as '+i['serial']+' is offline\n')
+                    off_sn.append(i['serial'])                    
+                    #rs.write('Offline,'+ i['serial']+'\n')
                 elif(i['status'] == 'alerting'):
                     alerting += 1
-                    print('Device with name as '+ i['name']+' and serial as '+i['serial']+' is alerting')
-                    rs.write('Device with name as '+ i['name']+' and serial as '+i['serial']+' is alerting\n')
+                    al_sn.append(i['serial'])                    
+                    #rs.write('Alerting,'+ i['serial']+'\n')
                 else:
                     dormant += 1
-                    print('Device with name as '+ i['name']+' and serial as '+i['serial']+' is dormant')
-                    rs.write('Device with name as '+ i['name']+' and serial as '+i['serial']+' is dormant\n')
+                    dor_sn.append(i['serial'])                    
+                    #rs.write('Dormant,'+ i['serial']+'\n')
 
         elif (ds == ulist_len//150 and ulist_rem == 0):
             break
@@ -130,38 +158,42 @@ try:
                     online += 1
                 elif(i['status']) == 'offline':
                     offline += 1
-                    print('Device with name as '+ i['name']+' and serial as '+i['serial']+' is offline')
-                    rs.write('Device with name as '+ i['name']+' and serial as '+i['serial']+' is offline\n')
+                    off_sn.append(i['serial'])                    
+                    #rs.write('Offline,'+ i['serial']+'\n')
                 elif(i['status'] == 'alerting'):
                     alerting += 1
-                    print('Device with name as '+ i['name']+' and serial as '+i['serial']+' is alerting')
-                    rs.write('Device with name as '+ i['name']+' and serial as '+i['serial']+' is alerting\n')
+                    al_sn.append(i['serial'])                    
+                    #rs.write('Alerting,'+ i['serial']+'\n')
                 else:
                     dormant += 1
-                    print('Device with name as '+ i['name']+' and serial as '+i['serial']+' is dormant')
-                    rs.write('Device with name as '+ i['name']+' and serial as '+i['serial']+' is dormant\n')
+                    dor_sn.append(i['serial'])                    
+                    #rs.write('Dormant,'+ i['serial']+'\n')
         ds += 1
 
-    print('Online devices count is ' + str(online) + '\n')
-    rs.write('Online devices count is ' + str(online)+'\n')
-    print('offline devices count is ' + str(offline) + '\n')
-    rs.write('offline devices count is ' + str(offline) + '\n')
-    print('alerting devices count is ' + str(alerting) + '\n')
-    rs.write('alerting devices count is ' + str(alerting) + '\n')
-    print('dormant count is ' + str(dormant) + '\n')
-    rs.write('dormant count is ' + str(dormant) + '\n\n')
+    rs.write('Online devices count is ' + str(online)+'\n') 
 
-    #print('end')
+    rs.write('\nOffline devices count is ' + str(offline) + '\n')
+    for i in off_sn:
+        rs.write('Offline,' + i + '\n')
 
-    # Check VPN status from hub side only, otherwise it takes long time
+    rs.write('\nAlerting devices count is ' + str(alerting) + '\n') 
+    for i in al_sn:
+        rs.write('Alerting,' + i + '\n')
+
+    rs.write('\nDormant count is ' + str(dormant) + '\n')
+    for i in dor_sn:
+        rs.write('Dormant,' + i + '\n')
+
+    # Check VPN status from hub side only, otherwise it takes so long time for a big org with many MX.
     vpn_status_data = dashboard.appliance.getOrganizationApplianceVpnStatuses(
     org_id, networkIds = hub_id_list
     )
 
-    rs.write("Check VPN status:\n")
+    rs.write("\nCheck VPN status:\n")
     rs.write("Hub,Spoke,Status\n")
 
     unreachable = 0
+    checkboth = []
     for x in vpn_status_data:
         if (x['vpnMode'] == 'hub'): # Only check those hubs
             m_vpn_peers = x["merakiVpnPeers"]
@@ -170,6 +202,7 @@ try:
                     if (z == y["networkId"]):
                         if(y["reachability"]) != 'reachable': 
                             line = x["networkName"] + "," + y["networkName"] + "," + y["reachability"] + "\n"
+                            checkboth.append(y['networkName'])
                             rs.write(line)
                             print(line)
                             unreachable += 1  
@@ -177,9 +210,31 @@ try:
     if(unreachable == 0):
         print('No unreachable spoke sites :-)')
         rs.write("No unreachable spoke sites.")
-
+    else:
+        both_unreachable = []
+        single_unreachable = []
+        checkboth_no_dup = list(dict.fromkeys(checkboth))
+        for i in checkboth_no_dup:
+            count  = 0
+            for j in checkboth:
+                if (j == i):
+                    count += 1
+            if (count == 2):
+                both_unreachable.append(i)
+            else:
+                single_unreachable.append(i)
+        rs.write('\nBoth hubs unreachable\n')
+        for i in both_unreachable:
+            rs.write(i+'\n')
+        rs.write('\nSingle hub unreachable\n')
+        for i in single_unreachable:
+            rs.write(i+'\n')
+        
     #Close the output file
     rs.close()
 
 except IOError as ioe:
+    # If cannot find the template.csv file or cannot open the output file, you will see this error.
+    # Sometimes you open the STBX_result.csv from last testing and forget to close it, you will also see the error.
+    # Remember to always close the output file or save it as another file. 
     print('Cannot find template.csv file as input or open STBX_result.csv file as output! Please check both.')

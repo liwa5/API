@@ -104,7 +104,7 @@ try:
     # device_status = dashboard.organizations.getOrganizationDevicesStatuses(
     # org_id, total_pages = 'all', networkIds = upgrade_nlist, productTypes = ['appliance']
     # )
- 
+  
     # In this way, there is no error but very slow :-(
     # device_status = dashboard.organizations.getOrganizationDevicesStatuses(
     # org_id, total_pages = 'all', productTypes = ['appliance']

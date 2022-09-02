@@ -27,7 +27,7 @@ def main():
     # reso = resolution_a, bandwidth_limit=bdw_limit)
 
     # t0 here can be the beginning of the timespan for the data. The maximum lookback period is 365 days from today.
-    # t1 is the end of the timespan for the data. 
+    # t1 is the end of the timespan for the data. You can edit t0 and t1 here to get the data you want. 
     wan_usage_history_output_to_excel(dashboard, network_id, t0='2022-08-30T16:00:00Z', t1='2022-09-01T16:00:00Z', 
     reso = resolution_a)
     #wan_usage_history_plot_using_json_file(resolution_a, bdw_limit)

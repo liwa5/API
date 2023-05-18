@@ -205,7 +205,7 @@ def main():
        
 
         # Check VPN status from hub side only. If there is hub list, search for those only.
-        # Otherwise, search for all vpn status. It took 7+ min for an org like Starbucks China
+        # Otherwise, search for all vpn status. It may take 7+ min for a big org
         # to get VPN status with total pages as all. 
         if(len(hub_id_list) == 0):
             try:

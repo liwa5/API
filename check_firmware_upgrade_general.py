@@ -1,6 +1,6 @@
 import pandas as pd
 import meraki
-import csv, numpy
+#import csv, numpy
 from datetime import datetime
 
 def main():
@@ -31,12 +31,15 @@ def main():
 
 
         # Open the result CSV file as output and record the time for tracking purpose. 
-        rs = open('result.csv', 'w', encoding='utf-8')
-        date = datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p")    
-        print(date)
-        rs.write(date + '\n')
+        date = datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")          
+        output_file_name = 'result_'+date+'.csv'
+        rs = open(output_file_name, 'w', encoding='utf-8')
+        #rs = open('MCD_result_20230518.csv', 'w', encoding='utf-8')
 
-        # dashboard = meraki.DashboardAPI(api_key)
+        
+        #print(date)
+        #rs.write(date + '\n')
+
         dashboard = meraki.DashboardAPI()
 
         orgs = dashboard.organizations.getOrganizations()
@@ -105,6 +108,13 @@ def main():
                 if (response['mode'] == 'hub'):
                     hub_id_list.append(h)   
 
+
+        # rs.write('\n Upgrade time\n')
+        # for n_id in upgrade_nlist:
+        #     upgrade_info = dashboard.networks.getNetworkFirmwareUpgrades(
+        #     n_id
+        #     )
+        #     rs.write(n_id+','+upgrade_info['products']['appliance']['nextUpgrade']['toVersion']['firmware']+','+ upgrade_info['products']['appliance']['nextUpgrade']['time']+'\n')
 
 
 
@@ -195,7 +205,7 @@ def main():
        
 
         # Check VPN status from hub side only. If there is hub list, search for those only.
-        # Otherwise, search for all vpn status. It took 7+ min for a big org
+        # Otherwise, search for all vpn status. It took 7+ min for an org like Starbucks China
         # to get VPN status with total pages as all. 
         if(len(hub_id_list) == 0):
             try:
@@ -248,10 +258,10 @@ def main():
                     both_unreachable.append(i)
                 else:
                     single_unreachable.append(i)
-            rs.write('\nBoth hubs unreachable\n')
+            rs.write('\nBoth hubs unreachable: ' + str(len(both_unreachable)) + '\n') 
             for i in both_unreachable:
                 rs.write(i+'\n')
-            rs.write('\nSingle hub unreachable\n')
+            rs.write('\nSingle hub unreachable: ' + str(len(single_unreachable)) + '\n')
             for i in single_unreachable:
                 rs.write(i+'\n')
             

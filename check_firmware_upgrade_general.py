@@ -1,6 +1,5 @@
 import pandas as pd
 import meraki
-#import csv, numpy
 from datetime import datetime
 
 def main():
@@ -33,15 +32,9 @@ def main():
         # Open the result CSV file as output and record the time for tracking purpose. 
         date = datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")          
         output_file_name = 'result_'+date+'.csv'
-        rs = open(output_file_name, 'w', encoding='utf-8')
-        #rs = open('MCD_result_20230518.csv', 'w', encoding='utf-8')
-
+        rs = open(output_file_name, 'w', encoding='utf-8')       
         
-        #print(date)
-        #rs.write(date + '\n')
-
         dashboard = meraki.DashboardAPI()
-
         orgs = dashboard.organizations.getOrganizations()
 
         foundOrg = False
@@ -205,7 +198,7 @@ def main():
        
 
         # Check VPN status from hub side only. If there is hub list, search for those only.
-        # Otherwise, search for all vpn status. It may take 7+ min for a big org
+        # Otherwise, search for all vpn status. It took 7+ min for a very big customer org
         # to get VPN status with total pages as all. 
         if(len(hub_id_list) == 0):
             try:
@@ -226,6 +219,7 @@ def main():
 
         unreachable = 0
         checkboth = []
+        hub_spoke_different = []
         for x in vpn_status_data:
             if (x['vpnMode'] == 'hub'): # Only check those hubs
                 m_vpn_peers = x["merakiVpnPeers"]
@@ -233,11 +227,29 @@ def main():
                     for y in m_vpn_peers:
                         if (z == y["networkId"]):
                             if(y["reachability"]) != 'reachable': 
-                                line = x["networkName"] + "," + y["networkName"] + "," + y["reachability"] + "\n"
-                                checkboth.append(y['networkName'])
-                                rs.write(line)
-                                print(line)
-                                unreachable += 1  
+                                # If the VPN status shows as unreachable from hub side, double check it from spoke side as well. 
+                                # The codes ran pretty well before. On July 3rd 2023, I found an issue the VPN status shows as unreachable 
+                                # from hub side but reachable from spoke side. Therefore, I added this piece of codes. 
+
+                                vpn_status_spoke = dashboard.appliance.getOrganizationApplianceVpnStatuses(
+                                org_id, networkIds = y["networkId"]
+                                )
+                                for vpn_status_spoke_item in vpn_status_spoke:
+                                    if (vpn_status_spoke_item['vpnMode'] == 'spoke'):
+                                        spoke_vpn_peers = vpn_status_spoke_item['merakiVpnPeers']
+                                        for spoke_vpn_peers_item in spoke_vpn_peers:
+                                            if (spoke_vpn_peers_item['networkId'] == x['networkId']):
+                                                if (spoke_vpn_peers_item['reachability'] == 'reachable'):
+                                                    # Hub shows unreachable but spoke shows reachable
+                                                    hub_spoke_different.append(y["networkName"])
+                                                else:
+                                                    # Both hub and spoke show VPN unreacheable
+                                                    line = x["networkName"] + "," + y["networkName"] + "," + y["reachability"] + "\n"
+                                                    checkboth.append(y['networkName'])
+                                                    rs.write(line)
+                                                    print(line)
+                                                    unreachable += 1  
+                                                break             
 
         if(unreachable == 0):
             print('No unreachable spoke sites :-)')
@@ -264,6 +276,11 @@ def main():
             rs.write('\nSingle hub unreachable: ' + str(len(single_unreachable)) + '\n')
             for i in single_unreachable:
                 rs.write(i+'\n')
+
+            if(len(hub_spoke_different)) != 0:
+                rs.write('\nBelow spokes have unconsistent VPN status between hub and spoke. Please double check from UI.\n')
+                for item in hub_spoke_different:
+                    rs.write(item+'\n')
             
         #Close the output file
         rs.close()

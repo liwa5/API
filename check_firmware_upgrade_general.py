@@ -9,20 +9,17 @@ def main():
     # @ https://github.com/meraki/dashboard-api-python/
 
     try:
-        # rows = []
-        # with open('network_or_template.csv', newline='', encoding = 'utf-8') as f:
-        # #with open('template.csv', newline='', encoding = 'utf-8-sig') as f:
-        # #with open('template.csv', newline='') as f:
-        # # I've met the issue that the template name copied from somewhere has the mixed en-coding issue
-        # # and the scipts wil crash here. Make sure the encoding of the template network name is correct. 
-        #     reader = csv.reader(f)
-        #     for row in reader:
-        #         rows.append(row)
 
         dict_df = pd.read_excel('config.xlsx', sheet_name=['Parameter','Network_Name'])
-
+ 
         parameters = dict_df.get('Parameter')
         org_name = parameters['Org Name'][0]
+        product_for_checking = parameters['Product For Checking'][0]   
+        
+        if (product_for_checking != 'appliance' and product_for_checking != 'switch' and product_for_checking != 'wireless' and product_for_checking != 'switch+wireless'):
+            print('Wrong product type!')
+            return 
+         
         dc_name_key_words = parameters['DC Name Key words'][0]
         #parameters = parameters.to_dict()
         name = dict_df.get('Network_Name')    
@@ -30,12 +27,16 @@ def main():
 
 
         # Open the result CSV file as output and record the time for tracking purpose. 
-        date = datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")          
-        output_file_name = 'result_'+date+'.csv'
+        date = datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")  
+        if (product_for_checking == 'switch+wireless'):        
+            output_file_name = 'result_switch_wireless_' + date +'.csv'
+        else:
+            output_file_name = 'result_' + product_for_checking +'_' + date +'.csv'
         rs = open(output_file_name, 'w', encoding='utf-8')       
         
         dashboard = meraki.DashboardAPI()
         orgs = dashboard.organizations.getOrganizations()
+        
 
         foundOrg = False
         for x in orgs:
@@ -52,7 +53,9 @@ def main():
         else:
             rs.write('Cannot find org with specified name.')
             rs.close()
-            return
+            return   
+       
+
 
         upgrade_template = []
         for i in network_name:
@@ -88,18 +91,19 @@ def main():
                     rs.write('Network id,' + j['id'] + '\n')
         rs.write('Matched '+str(single_net)+' network for status check\n\n')    
 
-        # Get the possible hub id list based on the DC name convention
-        po_hub_id_list = []
-        hub_id_list = []
-        if(isinstance(dc_name_key_words, str)):
-            for j in network_list:
-                if (dc_name_key_words in j['name']):
-                    po_hub_id_list.append(j['id']) 
-            # Validate if it's hub or not              
-            for h in po_hub_id_list:
-                response = dashboard.appliance.getNetworkApplianceVpnSiteToSiteVpn(h)
-                if (response['mode'] == 'hub'):
-                    hub_id_list.append(h)   
+        # Get the possible hub id list based on the DC name convention. Only needed for appliance.
+        if (product_for_checking == 'appliance'):  
+            po_hub_id_list = []
+            hub_id_list = []
+            if(isinstance(dc_name_key_words, str)):
+                for j in network_list:
+                    if (dc_name_key_words in j['name']):
+                        po_hub_id_list.append(j['id']) 
+                # Validate if it's hub or not              
+                for h in po_hub_id_list:
+                    response = dashboard.appliance.getNetworkApplianceVpnSiteToSiteVpn(h)
+                    if (response['mode'] == 'hub'):
+                        hub_id_list.append(h)   
 
 
         # rs.write('\n Upgrade time\n')
@@ -136,48 +140,87 @@ def main():
         ds = 0
         while (ds <= ulist_len//150):
             if (ds == ulist_len//150 and ulist_rem != 0):
-                device_status = dashboard.organizations.getOrganizationDevicesStatuses(
-                org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = ['appliance']
-                )
+                # if (product_for_checking == 'appliance'):                
+                #     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                #     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = ['appliance']
+                #     )
+                # elif (product_for_checking == 'switch'):
+                #     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                #     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = ['switch']
+                #     )
+                # else:
+                #     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                #     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = ['wireless']
+                #     )
+                if (product_for_checking == 'switch+wireless'):
+                    device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = ['switch','wireless']
+                    )
+                else:
+                    device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = [product_for_checking]
+                    )
+
                 for i in device_status:
                     # print(type(i), i)
                     if(i['status']) == 'online':
                         online += 1
                     elif(i['status']) == 'offline':
                         offline += 1
-                        off_sn.append(i['serial'])                    
+                        off_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Offline,'+ i['serial']+'\n')
                     elif(i['status'] == 'alerting'):
                         alerting += 1
-                        al_sn.append(i['serial'])                    
+                        al_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Alerting,'+ i['serial']+'\n')
                     else:
                         dormant += 1
-                        dor_sn.append(i['serial'])                    
+                        dor_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Dormant,'+ i['serial']+'\n')
 
             elif (ds == ulist_len//150 and ulist_rem == 0):
                 break
 
             else:
-                device_status = dashboard.organizations.getOrganizationDevicesStatuses(
-                org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = ['appliance']
-                )
+                if (product_for_checking == 'switch+wireless'):
+                    device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = ['switch','wireless']
+                    )
+                else:
+                    device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = [product_for_checking]
+                    )    
+
+                # device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                # org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = [product_for_checking]
+                # )
+                # if (product_for_checking == 'appliance'):                
+                #     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                #     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = ['appliance']
+                #     )
+                # elif (product_for_checking == 'switch'):
+                #     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                #     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = ['switch']
+                #     )
+                # else:
+                #     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                #     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = ['wireless']
+                #     )
                 for i in device_status:
                     # print(type(i), i)
                     if(i['status']) == 'online':
                         online += 1
                     elif(i['status']) == 'offline':
                         offline += 1
-                        off_sn.append(i['serial'])                    
+                        off_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Offline,'+ i['serial']+'\n')
                     elif(i['status'] == 'alerting'):
                         alerting += 1
-                        al_sn.append(i['serial'])                    
+                        al_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Alerting,'+ i['serial']+'\n')
                     else:
                         dormant += 1
-                        dor_sn.append(i['serial'])                    
+                        dor_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Dormant,'+ i['serial']+'\n')
             ds += 1
 
@@ -185,102 +228,105 @@ def main():
 
         rs.write('\nOffline devices count is ' + str(offline) + '\n')
         for i in off_sn:
-            rs.write('Offline,' + i + '\n')
+            rs.write('Offline,' + i[0]+','+i[1]+',' + '\n')
 
         rs.write('\nAlerting devices count is ' + str(alerting) + '\n') 
         for i in al_sn:
-            rs.write('Alerting,' + i + '\n')
+            rs.write('Alerting,' + i[0]+','+i[1]+',' +'\n')
 
         rs.write('\nDormant count is ' + str(dormant) + '\n')
         for i in dor_sn:
-            rs.write('Dormant,' + i + '\n')
+            rs.write('Dormant,' + i[0]+','+i[1]+',' + '\n')
+            
 
        
 
         # Check VPN status from hub side only. If there is hub list, search for those only.
         # Otherwise, search for all vpn status. It took 7+ min for a very big customer org
         # to get VPN status with total pages as all. 
-        if(len(hub_id_list) == 0):
-            try:
+        # Only do the checking for appliance.
+        if (product_for_checking == 'appliance'): 
+            if(len(hub_id_list) == 0):
+                try:
+                    vpn_status_data = dashboard.appliance.getOrganizationApplianceVpnStatuses(
+                    org_id, total_pages='all'
+                    )
+                except:
+                    rs.write('\nVPN not enabled in this org.\n')
+                    rs.close()
+                    return
+            else:
                 vpn_status_data = dashboard.appliance.getOrganizationApplianceVpnStatuses(
-                org_id, total_pages='all'
+                org_id, networkIds = hub_id_list
                 )
-            except:
-                rs.write('\nVPN not enabled in this org.\n')
-                rs.close()
-                return
-        else:
-            vpn_status_data = dashboard.appliance.getOrganizationApplianceVpnStatuses(
-            org_id, networkIds = hub_id_list
-            )
 
-        rs.write("\nCheck VPN status:\n")
-        rs.write("Hub,Spoke,Status\n")
+            rs.write("\nCheck VPN status:\n")
+            rs.write("Hub,Spoke,Status\n")
 
-        unreachable = 0
-        checkboth = []
-        hub_spoke_different = []
-        for x in vpn_status_data:
-            if (x['vpnMode'] == 'hub'): # Only check those hubs
-                m_vpn_peers = x["merakiVpnPeers"]
-                for z in upgrade_nlist:
-                    for y in m_vpn_peers:
-                        if (z == y["networkId"]):
-                            if(y["reachability"]) != 'reachable': 
-                                # If the VPN status shows as unreachable from hub side, double check it from spoke side as well. 
-                                # The codes ran pretty well before. On July 3rd 2023, I found an issue the VPN status shows as unreachable 
-                                # from hub side but reachable from spoke side. Therefore, I added this piece of codes. 
+            unreachable = 0
+            checkboth = []
+            hub_spoke_different = []
+            for x in vpn_status_data:
+                if (x['vpnMode'] == 'hub'): # Only check those hubs
+                    m_vpn_peers = x["merakiVpnPeers"]
+                    for z in upgrade_nlist:
+                        for y in m_vpn_peers:
+                            if (z == y["networkId"]):
+                                if(y["reachability"]) != 'reachable': 
+                                    # If the VPN status shows as unreachable from hub side, double check it from spoke side as well. 
+                                    # The codes ran pretty well before. On July 3rd 2023, I found an issue the VPN status shows as unreachable 
+                                    # from hub side but reachable from spoke side. Therefore, I added this piece of codes. 
 
-                                vpn_status_spoke = dashboard.appliance.getOrganizationApplianceVpnStatuses(
-                                org_id, networkIds = y["networkId"]
-                                )
-                                for vpn_status_spoke_item in vpn_status_spoke:
-                                    if (vpn_status_spoke_item['vpnMode'] == 'spoke'):
-                                        spoke_vpn_peers = vpn_status_spoke_item['merakiVpnPeers']
-                                        for spoke_vpn_peers_item in spoke_vpn_peers:
-                                            if (spoke_vpn_peers_item['networkId'] == x['networkId']):
-                                                if (spoke_vpn_peers_item['reachability'] == 'reachable'):
-                                                    # Hub shows unreachable but spoke shows reachable
-                                                    hub_spoke_different.append(y["networkName"])
-                                                else:
-                                                    # Both hub and spoke show VPN unreacheable
-                                                    line = x["networkName"] + "," + y["networkName"] + "," + y["reachability"] + "\n"
-                                                    checkboth.append(y['networkName'])
-                                                    rs.write(line)
-                                                    print(line)
-                                                    unreachable += 1  
-                                                break             
+                                    vpn_status_spoke = dashboard.appliance.getOrganizationApplianceVpnStatuses(
+                                    org_id, networkIds = y["networkId"]
+                                    )
+                                    for vpn_status_spoke_item in vpn_status_spoke:
+                                        if (vpn_status_spoke_item['vpnMode'] == 'spoke'):
+                                            spoke_vpn_peers = vpn_status_spoke_item['merakiVpnPeers']
+                                            for spoke_vpn_peers_item in spoke_vpn_peers:
+                                                if (spoke_vpn_peers_item['networkId'] == x['networkId']):
+                                                    if (spoke_vpn_peers_item['reachability'] == 'reachable'):
+                                                        # Hub shows unreachable but spoke shows reachable
+                                                        hub_spoke_different.append(y["networkName"])
+                                                    else:
+                                                        # Both hub and spoke show VPN unreacheable
+                                                        line = x["networkName"] + "," + y["networkName"] + "," + y["reachability"] + "\n"
+                                                        checkboth.append(y['networkName'])
+                                                        rs.write(line)
+                                                        print(line)
+                                                        unreachable += 1  
+                                                    break             
 
-        if(unreachable == 0):
-            print('No unreachable spoke sites :-)')
-            rs.write("No unreachable spoke sites.")
-        else:
-            # To find those networks unreachable from both hubs and those unreachable from single hub
-            # In this way, it's much easier to compare the results if you run the scipt before the 
-            # firmware and after the firmware upgrade.
-            both_unreachable = []
-            single_unreachable = []
-            checkboth_no_dup = list(dict.fromkeys(checkboth))
-            for i in checkboth_no_dup:
-                count  = 0
-                for j in checkboth:
-                    if (j == i):
-                        count += 1
-                if (count == 2):
-                    both_unreachable.append(i)
-                else:
-                    single_unreachable.append(i)
-            rs.write('\nBoth hubs unreachable: ' + str(len(both_unreachable)) + '\n') 
-            for i in both_unreachable:
-                rs.write(i+'\n')
-            rs.write('\nSingle hub unreachable: ' + str(len(single_unreachable)) + '\n')
-            for i in single_unreachable:
-                rs.write(i+'\n')
+            if(unreachable == 0):
+                print('No unreachable spoke sites :-)')
+                rs.write("No unreachable spoke sites.")
+            else:
+                # To find those networks unreachable from both hubs and those unreachable from single hub
+                # In this way, it's much easier to compare the results if you run the scipt before the 
+                # firmware and after the firmware upgrade.
+                both_unreachable = []
+                single_unreachable = []
+                checkboth_no_dup = list(dict.fromkeys(checkboth))
+                for i in checkboth_no_dup:
+                    count  = 0
+                    for j in checkboth:
+                        if (j == i):
+                            count += 1
+                    if (count == 2):
+                        both_unreachable.append(i)
+                    else:
+                        single_unreachable.append(i)
+                rs.write('\nBoth hubs unreachable: ' + str(len(both_unreachable)) + '\n') 
+                for i in both_unreachable:
+                    rs.write(i+'\n')
+                rs.write('\nSingle hub unreachable: ' + str(len(single_unreachable)) + '\n')
+                for i in single_unreachable:
+                    rs.write(i+'\n')
 
-            if(len(hub_spoke_different)) != 0:
-                rs.write('\nBelow spokes have unconsistent VPN status between hub and spoke. Please double check from UI.\n')
-                for item in hub_spoke_different:
-                    rs.write(item+'\n')
+                if(len(hub_spoke_different)) != 0:
+                    rs.write('\nBelow spokes have unconsistent VPN status between hub and spoke. Please double check from UI.\n')
+                    for item in hub_spoke_different:
+                        rs.write(item+'\n')
             
         #Close the output file
         rs.close()

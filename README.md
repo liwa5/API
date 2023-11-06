@@ -1,5 +1,5 @@
 check_firmware_upgrade_general.py
-This file is to check device status (online/offline/dormant, MX only) and AutoVPN status within a given scope of networks or templates. 
+This file is to check device status (online/offline/dormant) and AutoVPN status (MX only) within a given scope of networks or templates. 
 
 Use case: Run it before and after the firmware upgrade, compare the results delta to identify whether any MX become offline or AutoVPN connection become unreacheable after firmware upgrade. 
 

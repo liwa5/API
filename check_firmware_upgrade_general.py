@@ -8,7 +8,8 @@ def main():
     # Instead, use an environment variable as shown under the Usage section
     # @ https://github.com/meraki/dashboard-api-python/
 
-    try:
+    try:   
+        
 
         dict_df = pd.read_excel('config.xlsx', sheet_name=['Parameter','Network_Name'])
  
@@ -135,6 +136,9 @@ def main():
         al_sn = []
         dor_sn = []
 
+        not_running_configured = 0
+        not_running_configured_sn = []
+
         ulist_len = len(upgrade_nlist)
         ulist_rem = ulist_len % 150
         ds = 0
@@ -156,8 +160,15 @@ def main():
                     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
                     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = ['switch','wireless']
                     )
+                    devices = dashboard.organizations.getOrganizationDevices(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = ['switch','wireless']
+                    )
+
                 else:
                     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = [product_for_checking]
+                    )
+                    devices = dashboard.organizations.getOrganizationDevices(
                     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:], productTypes = [product_for_checking]
                     )
 
@@ -178,6 +189,11 @@ def main():
                         dor_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Dormant,'+ i['serial']+'\n')
 
+                for i_device in devices:
+                    if('Not running configured' in i_device['firmware']):
+                        not_running_configured += 1
+                        not_running_configured_sn.append([i_device['productType'],i_device['serial']])
+
             elif (ds == ulist_len//150 and ulist_rem == 0):
                 break
 
@@ -186,10 +202,16 @@ def main():
                     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
                     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = ['switch','wireless']
                     )
+                    devices = dashboard.organizations.getOrganizationDevices(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = ['switch','wireless']
+                    )
                 else:
                     device_status = dashboard.organizations.getOrganizationDevicesStatuses(
                     org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = [product_for_checking]
-                    )    
+                    )   
+                    devices = dashboard.organizations.getOrganizationDevices(
+                    org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = [product_for_checking]
+                    )  
 
                 # device_status = dashboard.organizations.getOrganizationDevicesStatuses(
                 # org_id, total_pages = 'all', networkIds = upgrade_nlist[ds*150:(ds+1)*150], productTypes = [product_for_checking]
@@ -222,6 +244,12 @@ def main():
                         dormant += 1
                         dor_sn.append([i['productType'],i['serial']])                    
                         #rs.write('Dormant,'+ i['serial']+'\n')
+
+                for i_device in devices:                    
+                    if('Not running configured' in i_device['firmware']):
+                        not_running_configured += 1
+                        not_running_configured_sn.append([i_device['productType'],i_device['serial']])
+
             ds += 1
 
         rs.write('Online devices count is ' + str(online)+'\n') 
@@ -237,7 +265,10 @@ def main():
         rs.write('\nDormant count is ' + str(dormant) + '\n')
         for i in dor_sn:
             rs.write('Dormant,' + i[0]+','+i[1]+',' + '\n')
-            
+
+        rs.write('\nThe count of devices that are not running configured version is '+str(not_running_configured)+'\n')
+        for i in not_running_configured_sn:
+            rs.write('Not running configured version,' + i[0]+','+i[1]+',' + '\n')           
 
        
 
@@ -324,7 +355,7 @@ def main():
                     rs.write(i+'\n')
 
                 if(len(hub_spoke_different)) != 0:
-                    rs.write('\nBelow spokes have unconsistent VPN status between hub and spoke. Please double check from UI.\n')
+                    rs.write('\nBelow spokes have inconsistent VPN status between hub and spoke. Please double check from UI.\n')
                     for item in hub_spoke_different:
                         rs.write(item+'\n')
             

@@ -11,7 +11,7 @@ def main():
     try:   
         
 
-        dict_df = pd.read_excel('config.xlsx', sheet_name=['Parameter','Network_Name'])
+        dict_df = pd.read_excel('c:/code/config.xlsx', sheet_name=['Parameter','Network_Name'])
  
         parameters = dict_df.get('Parameter')
         org_name = parameters['Org Name'][0]
@@ -30,14 +30,13 @@ def main():
         # Open the result CSV file as output and record the time for tracking purpose. 
         date = datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")  
         if (product_for_checking == 'switch+wireless'):        
-            output_file_name = 'result_switch_wireless_' + date +'.csv'
+            output_file_name = 'c:/code/result_switch_wireless_' + date +'.csv'
         else:
-            output_file_name = 'result_' + product_for_checking +'_' + date +'.csv'
+            output_file_name = 'c:/code/result_' + product_for_checking +'_' + date +'.csv'
         rs = open(output_file_name, 'w', encoding='utf-8')       
         
         dashboard = meraki.DashboardAPI()
-        orgs = dashboard.organizations.getOrganizations()
-        
+        orgs = dashboard.organizations.getOrganizations()        
 
         foundOrg = False
         for x in orgs:
